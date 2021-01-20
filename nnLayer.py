@@ -187,56 +187,6 @@ class TextGRU(nn.Module):
 
         return output # output: batchSize × seqLen × hiddenSize*2
 
-class TextToT(nn.Module):
-    def __init__(self, feaSize, dropout=0.2, length=64, name='textToT'):
-        super(TextToT, self).__init__()
-        self.head = nn.Parameter(torch.normal(0,1,size=(1,feaSize)), requires_grad=True)
-        self.dropout1 = nn.Dropout2d(p=dropout/2)
-        self.dropout2 = nn.Dropout(p=dropout/2)
-        self.linear = nn.Sequential(nn.Linear(feaSize,feaSize),
-                                    nn.LayerNorm(feaSize),
-                                    nn.ReLU())
-        self.connect = nn.Sequential(nn.Linear(feaSize, 1),
-                                     nn.Sigmoid())
-        self.length = length
-        self.name = name
-    def forward(self, x):
-        # x: batchSize × seqLen × feaSize
-        x = torch.cat([self.head.unsqueeze(dim=0).repeat(len(x),1,1),x], dim=1) # => batchSize × seqLen × feaSize
-        #print(x.shape)
-        x = self.dropout2(self.dropout1(x)) # => batchSize × seqLen × feaSize
-        #x = self.linear(rawX) # => batchSize × seqLen × feaSize
-        xFirst = x.unsqueeze(dim=2) # => batchSize × sentNum × 1 × feaSize
-        xLast  = x.unsqueeze(dim=1) # => batchSize × 1 × sentNum × feaSize
-        xCat   = self.connect(xFirst - xLast).squeeze(dim=-1) # => batchSize × sentNum × sentNum
-        
-        add = torch.zeros(xCat.shape, dtype=torch.float32, device=x.device) # => batchSize × sentNum × sentNum
-        add[:,:,0] = -1
-        add[:,-1,:] = -1
-        add[:,-1,-1] = 1
-        
-        xCat = F.relu(xCat+add)
-        xCat_ = xCat.detach().data
-        
-        initState = torch.zeros(xCat.shape[:2], dtype=torch.float32, device=x.device).unsqueeze(dim=1) # => batchSize × 1 × sentNum
-        initState[:,:,0] = 1
-        #print(initState.shape)
-        
-        ToT = self.get_train_of_thought(initState, xCat) # => batchSize × sentNum × sentNum
-        return torch.matmul(ToT, x), xCat_ # => batchSize × sentNum × feaSize
-    
-    def get_train_of_thought(self, initState, xCat):
-        # initState: batchSize × 1 × sentNum; xCat: batchSize × sentNum × sentNum
-        states = [initState]
-        mask = torch.zeros(xCat.shape, dtype=torch.float32, device=initState.device) # batchSize × sentNum × sentNum
-        for i in range(self.length):
-            state = torch.matmul(states[-1],xCat) # => batchSize × 1 × sentNum
-            state = state/state.sum(dim=-1, keepdim=True) # => batchSize × 1 × sentNum
-            maxI = state.argmax(axis=-1).detach().data.cpu().reshape(-1) # => batchSize
-            mask[range(len(mask)), :, maxI] = -1
-            xCat = F.relu(xCat + mask)
-            states.append( state )
-        return torch.cat(states, dim=1) # => batchSize × sentNum × sentNum
 class FastText(nn.Module):
     def __init__(self, feaSize, name='fastText'):
         super(FastText, self).__init__()

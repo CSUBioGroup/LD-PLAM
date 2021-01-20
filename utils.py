@@ -6,7 +6,7 @@ from gensim.models import Word2Vec
 from gensim.models.word2vec import LineSentence
 from tqdm import tqdm
 from collections import Counter
-from transformers import BertTokenizer, BertForMaskedLM, BertConfig, BertLMHeadModel, AutoTokenizer, AutoModelWithLMHead
+from transformers import RobertaModel,RobertaTokenizer,BertTokenizer, BertForMaskedLM, BertConfig, BertLMHeadModel, AutoTokenizer, AutoModelWithLMHead, AutoModelForMaskedLM, XLNetLMHeadModel, BertModel
 
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -88,20 +88,6 @@ class MIMIC_new:
         out = out.astype({'HADM_ID':np.int32, 'TEXT':'str', 'ICD9_CODE':'str'})
         out['TEXT'] = out['TEXT'].map(lambda x: formatParser.sub( ' <br> ', contentParser.sub(' ', x.lower())) )
         out.to_csv(outPath)
-        # get base corpus
-        print('Generating note corpus...')
-        with open(noteOutPath, 'w') as f:
-            for note in tqdm(noteevents['TEXT']):
-                note = note.replace('\\',' ').lower()
-                note = contentParser.sub(' ', note)
-                note = formatParser.sub(' <br> ', note)
-                f.write(' '.join(term_pattern.findall(note))+'\n')
-        print('Generating title corpus...')
-        with open(titleOutPath, 'w') as f:
-            for i in tqdm(range(dIcdDiagnoses.shape[0])):
-                title = dIcdDiagnoses.iloc[i]
-                title = title['SHORT_TITLE'].lower() + ' <:> ' + title['LONG_TITLE'].lower()
-                f.write(' '.join(term_pattern.findall(title))+'\n')
 
 class DataClass:
     def __init__(self, dataPath, mimicPath='mimic/', stopWordPath="stopwords.txt", validSize=0.2, testSize=0.0, minCount=10, noteMaxLen=768, seed=9527, topICD=-1):
@@ -341,3 +327,48 @@ class DataClass:
             if len(sents[i])<seqMaxLen:
                 sents[i] = sents[i] + ['<EOS>' for i in range(seqMaxLen-len(sents[i]))]
         return sents
+
+
+def toCODE(x):
+    x = x.split('_')
+    return ' '.join(x[0:1] + list(x[1]))
+def unique(x):
+    tmp = x.iloc[0]
+    for i in range(1,x.shape[0]):
+        tmp.SHORT_TITLE += f"; {x.iloc[i].SHORT_TITLE}"
+        tmp.LONG_TITLE += f"; {x.iloc[i].LONG_TITLE}"
+    return tmp
+
+def get_ICD_vectors(dataClass, mimicPath):
+    dia_icd = pd.read_csv(os.path.join(mimicPath,'D_ICD_DIAGNOSES.csv'))
+    dia_icd['ICD9_CODE'] = dia_icd['ICD9_CODE'].map(lambda x:'dia_'+str(x))
+    dia_icd['CODE'] = dia_icd['ICD9_CODE'].map(toCODE)
+    dia_icd = dia_icd.groupby('ICD9_CODE').apply(unique).set_index('ICD9_CODE')
+    pro_icd = pd.read_csv(os.path.join(mimicPath,'D_ICD_PROCEDURES.csv'))
+    pro_icd['ICD9_CODE'] = pro_icd['ICD9_CODE'].map(lambda x:'pro_'+str(x))
+    pro_icd['CODE'] = pro_icd['ICD9_CODE'].map(toCODE)
+    pro_icd = pro_icd.groupby('ICD9_CODE').apply(unique).set_index('ICD9_CODE')
+
+    icd = pd.concat([dia_icd,pro_icd])
+
+    for new in set(dataClass.id2icd) - set(icd.index):
+        icd.loc[new] = [-1, "", "", toCODE(new)]
+    icd = icd.loc[dataClass.id2icd]
+
+    tokenizer = RobertaTokenizer.from_pretrained('trainMLM/model/roberta_large/')
+    model = RobertaModel.from_pretrained(
+                'trainMLM/model/roberta_large/',
+            ).eval().to('cuda:0')
+
+    id2descVec = np.zeros((len(icd),1024), dtype='float32')
+    for i,item in enumerate(tqdm(icd.itertuples())):
+        tmp = item.CODE + ' : ' + item.SHORT_TITLE + ' ; ' + item.LONG_TITLE
+        inputs = tokenizer(tmp, 
+                           padding=True,
+                           truncation=True,
+                           max_length=512, 
+                           return_tensors="pt")
+        tmp = model(**inputs.to('cuda:0'))[0].detach().data.cpu().numpy().mean(axis=1)
+        id2descVec[i] = tmp
+        
+    return id2descVec
