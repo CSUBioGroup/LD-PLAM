@@ -30,6 +30,13 @@ dataClass.vectorize(noteFeaSize=128)
 >**topICD** is how many top-frequency ICD codes will be used. For MIMIC-III full, set it to -1. For MIMIC-III 50, set it to 50. 
 >**noteFeaSize** is the embedding size of words in EMRs. 
 
+In order to be consistent with previous experimental settings, we need to redivide the data set.
+```python
+dataClass = redivide_dataset(dataClass, camlPath='mimic3/caml')
+```
+>**dataClass** is the dataClass you obtained before. 
+>**camlPath** is the path of caml's files, which is included in the folder mimic3 of this repository.
+
 ### 3. Hot to compute ICD vectors. 
 Before train the model, we need to obtain the ICD vectors computed by ICDs' description first. 
 ```python

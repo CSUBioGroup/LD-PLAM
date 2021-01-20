@@ -329,6 +329,25 @@ class DataClass:
         return sents
 
 
+def redivede_dataset(dataClass, camlPath='mimic3/caml'):
+    trainHID = pd.read_csv(os.path.join(camlPath,'train_full_hadm_ids.csv'), header=None)[0].values
+    validHID = pd.read_csv(os.path.join(camlPath,'dev_full_hadm_ids.csv'), header=None)[0].values
+    testHID  = pd.read_csv(os.path.join(camlPath,'test_full_hadm_ids.csv'), header=None)[0].values
+
+    trainIdList,validIdList,testIdList = [],[],[]
+    for i,hid in enumerate(dataClass.hadmId):
+        if hid in trainHID:
+            trainIdList.append(i)
+        elif hid in validHID:
+            validIdList.append(i)
+        elif hid in testHID:
+            testIdList.append(i)
+
+    dataClass.trainIdList,dataClass.validIdList,dataClass.testIdList = trainIdList,validIdList,testIdList
+    dataClass.trainSampleNum,dataClass.validSampleNum,dataClass.testSampleNum = len(trainIdList),len(validIdList),len(testIdList)
+    dataClass.totalSampleNum = len(trainIdList)+len(validIdList)+len(testIdList)
+    return dataClass
+
 def toCODE(x):
     x = x.split('_')
     return ' '.join(x[0:1] + list(x[1]))
@@ -372,3 +391,4 @@ def get_ICD_vectors(dataClass, mimicPath):
         id2descVec[i] = tmp
         
     return id2descVec
+
