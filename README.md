@@ -37,7 +37,7 @@ dataClass = redivide_dataset(dataClass, camlPath='mimic3/caml')
 >**dataClass** is the dataClass you obtained before. 
 >**camlPath** is the path of caml's files, which is included in the folder mimic3 of this repository.
 
-### 3. Hot to compute ICD vectors. 
+### 3. How to compute ICD vectors. 
 Before train the model, we need to obtain the ICD vectors computed by ICDs' description first. 
 ```python
 labDescVec = get_ICD_vectors(dataClass=dataClass, mimicPath="path to mimic3")
