@@ -12,6 +12,7 @@ from DL_ClassifierModel import *
 Instance the MIMIC-III object and do preprocessing. 
 ```python
 mimic = MIMIC_new(path='path to mimic3')
+mimic.get_basic_data(outPath='data.csv')
 ```
 >**path** is the path of the raw MIMIC-III. 
 
