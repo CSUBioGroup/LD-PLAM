@@ -329,7 +329,7 @@ class DataClass:
         return sents
 
 
-def redivede_dataset(dataClass, camlPath='mimic3/caml'):
+def redivide_dataset(dataClass, camlPath='mimic3/caml'):
     trainHID = pd.read_csv(os.path.join(camlPath,'train_full_hadm_ids.csv'), header=None)[0].values
     validHID = pd.read_csv(os.path.join(camlPath,'dev_full_hadm_ids.csv'), header=None)[0].values
     testHID  = pd.read_csv(os.path.join(camlPath,'test_full_hadm_ids.csv'), header=None)[0].values
